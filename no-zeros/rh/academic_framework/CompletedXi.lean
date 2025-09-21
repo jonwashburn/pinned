@@ -34,9 +34,9 @@ def riemannXi (s : ℂ) : ℂ := G s * riemannZeta s
 /-! Auxiliary nonvanishing facts for the archimedean factor `G`. -/
 
 private lemma one_half_ne_zero : ((1 : ℂ) / 2) ≠ 0 := by
-  have h2 : (2 : ℂ) ≠ 0 := by norm_num
-  -- (1/2) = 1 * (2)⁻¹ and both factors are nonzero
-  simpa [div_eq_mul_inv] using mul_ne_zero (by norm_num) (inv_ne_zero h2)
+  -- direct: division in a domain is nonzero if numerator and denominator are
+  -- nonzero; `simp` alone cannot close this goal reliably.
+  exact div_ne_zero (by norm_num) (by norm_num) 
 
 private lemma pi_ne_zero_ℂ : (Real.pi : ℂ) ≠ 0 := by
   exact_mod_cast Real.pi_ne_zero
@@ -44,13 +44,8 @@ private lemma pi_ne_zero_ℂ : (Real.pi : ℂ) ≠ 0 := by
 private lemma cpow_pi_ne_zero (s : ℂ) : (Real.pi : ℂ) ^ (-(s / 2)) ≠ 0 := by
   classical
   have hπ0 : (Real.pi : ℂ) ≠ 0 := pi_ne_zero_ℂ
-  have hdef : (Real.pi : ℂ) ^ (-(s / 2))
-      = Complex.exp (Complex.log (Real.pi : ℂ) * (-(s / 2))) := by
-    simp [Complex.cpow_def, hπ0]
-  have : Complex.exp (Complex.log (Real.pi : ℂ) * (-(s / 2))) ≠ 0 :=
-    Complex.exp_ne_zero _
-  simp [hdef] at this
-  simpa [hdef]
+  -- rewrite the goal and close with `exp_ne_zero`, avoiding `simpa`
+  simp [Complex.cpow_def, hπ0]
 
 
 /-! Ext variant without the polynomial factor. -/
@@ -66,21 +61,24 @@ def riemannXi_ext (s : ℂ) : ℂ := completedRiemannZeta s
 theorem xi_ext_factorization_on_Ω : ∀ ρ ∈ RH.RS.Ω, riemannXi_ext ρ = G_ext ρ * riemannZeta ρ := by
   intro ρ hΩ
   -- From Ω: (1/2) < ρ.re ⇒ 0 < ρ.re and thus ρ ≠ 0
+  -- Keep `simpa` here: `simp` produces `2⁻¹` which mismatches later types.
   have hhalf : (1 / 2 : ℝ) < ρ.re := by
+    -- extract directly without rewriting 1/2
     simpa [RH.RS.Ω, Set.mem_setOf_eq] using hΩ
   have hReρ_pos : 0 < ρ.re := by
     have : (1 / 2 : ℝ) < ρ.re := hhalf
     linarith
   have hρ_ne : ρ ≠ 0 := by
     intro h0
+    -- Re ρ > 0 contradicts ρ = 0
     have : 0 < (0 : ℝ) := by simpa [h0, Complex.zero_re] using hReρ_pos
     exact (lt_irrefl _) this
   -- Helper: normalize exponent -(ρ/2) = (-ρ)/2
   have neg_div_two (z : ℂ) : -(z / 2) = (-z) / 2 := by
     calc
-      -(z / 2) = -(z * (2 : ℂ)⁻¹) := by simpa [div_eq_mul_inv]
-      _ = (-z) * (2 : ℂ)⁻¹       := by simpa [neg_mul]
-      _ = (-z) / 2               := by simpa [div_eq_mul_inv]
+      -(z / 2) = -(z * (2 : ℂ)⁻¹) := by simp [div_eq_mul_inv]
+      _ = (-z) * (2 : ℂ)⁻¹       := by simp [neg_mul]
+      _ = (-z) / 2               := by simp [div_eq_mul_inv]
   -- ζ = Λ / Γℝ at ρ ≠ 0
   have hζ : riemannZeta ρ = completedRiemannZeta ρ / Complex.Gammaℝ ρ :=
     riemannZeta_def_of_ne_zero (s := ρ) hρ_ne
@@ -121,14 +119,16 @@ theorem xi_ext_factorization_on_Ω : ∀ ρ ∈ RH.RS.Ω, riemannXi_ext ρ = G_e
 theorem G_ext_nonzero_on_Ω : ∀ ρ ∈ RH.RS.Ω, G_ext ρ ≠ 0 := by
   intro ρ hΩ
   -- Identify with `Gammaℝ ρ` to leverage standard nonvanishing facts
+  -- Keep `simpa` here: `simp` produces `2⁻¹` which mismatches later types.
   have hhalf : (1 / 2 : ℝ) < ρ.re := by
     simpa [RH.RS.Ω, Set.mem_setOf_eq] using hΩ
   have hReρ_pos : 0 < ρ.re := lt_trans (by norm_num : (0 : ℝ) < 1 / 2) hhalf
   -- Rewrite and conclude
-  have : G_ext ρ = Complex.Gammaℝ ρ := by
+  have hGext : G_ext ρ = Complex.Gammaℝ ρ := by
     rw [G_ext, ← Complex.Gammaℝ_def (s := ρ)]
   have hΓR_ne : Complex.Gammaℝ ρ ≠ 0 := Gammaℝ_ne_zero_of_re_pos hReρ_pos
-  simpa [this]
+  -- `simp` cannot finish; use `simpa` to rewrite to `Gammaℝ ρ ≠ 0` and close.
+  simpa [hGext] using hΓR_ne
 
 /-- On Ω, zeros of `riemannXi_ext` coincide with zeros of `riemannZeta`. -/
 theorem xi_ext_zeros_eq_zeta_zeros_on_Ω :
